@@ -106,8 +106,8 @@ p_individual
 # linear mixed effect model
 ```{r linear model and t-test}
 m1 <- lmer(results ~ trial*block + (1|participant), data=d.filtered)
-summary(m1)
 anova(m1)
+
 m2 <- lmer(results ~ trial/block + (1|participant), data=d.filtered)
 summary(m2)
 m3 <- lmer(results ~ block/trial + (1|participant), data=d.filtered)
