@@ -1,0 +1,132 @@
+---
+title: "DBSL_analysis"
+author: "YLU"
+date: "2024-05-30"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+rm(list = ls())
+knitr::opts_chunk$set(echo = TRUE, results = TRUE)
+```
+
+# load libraries
+```{r load packages}
+library("tidyverse")
+library("ggplot2")
+library('lmerTest')
+library('emmeans')
+```
+
+```{r load, process, filter data and get mean}
+
+d <- read_csv("experiment_results/experiment_results.csv")
+
+data_processing <- function(data) {
+  data %>% 
+  dplyr::select(`Participant Private ID`, `Spreadsheet: CA_iteration1_stimuli`, `Store: Result`, `Store: Response time`, Display, Response) %>%
+  filter(!(Display %in% c(NA, "Instruction (exercise)", "Instruction", "Exercise", "Exercise end", "Finish"))) %>% 
+  filter(Response %in% c("beer.png", "deer.png", "pier.png", "tear.png")) %>% 
+  rename(trial=`Spreadsheet: CA_iteration1_stimuli`,
+         results=`Store: Result`,
+         RT=`Store: Response time`,
+         iteration=Display,
+         participant=`Participant Private ID`) %>% 
+  filter(trial %in% c("DT_F0_2_VOT_4.mp3", "DT_F0_8_VOT_4.mp3")) %>% 
+  mutate(trial=ifelse(trial=="DT_F0_2_VOT_4.mp3", "lowf0", "highf0"),
+         results=gsub("\\.png", "", results),
+         results=case_when(results=="deer" ~ 0,
+                           results=="beer" ~ 0,
+                           results=="pier" ~ 100,
+                           results=="tear" ~ 100),
+         block=case_when(str_starts(iteration, "CA_") ~ "canonical",
+                        str_starts(iteration, "NE_") ~ "neutral",
+                        str_starts(iteration, "RE_") ~ "reversed")) %>% 
+  dplyr::select(-Response)
+  
+}
+
+data_filtering <- function(data) {
+  filtered_data <- data %>% 
+    group_by(participant) %>%
+    mutate(
+      upper_bound = quantile(RT, 0.75) + 1.5 * IQR(RT)
+    ) %>%
+    mutate(
+      excluded = ifelse(RT > upper_bound, 1, 0)
+    ) %>%
+    filter(RT <= upper_bound) %>%
+    ungroup()
+  
+  exclusion_summary <- data %>%
+    group_by(participant) %>%
+    mutate(
+      upper_bound = quantile(RT, 0.75) + 1.5 * IQR(RT)
+    ) %>%
+    summarise(
+      excluded_trials = sum(RT > upper_bound)
+    )
+  
+  list(filtered_data = filtered_data, exclusion_summary = exclusion_summary)
+}
+
+get_mean <- function(data) {
+  mean <- data %>% 
+    group_by(block, trial) %>% 
+    summarise(mean_results=mean(results)) %>% 
+    ungroup()
+  return(mean)
+} 
+
+d.DBSL <- data_processing(d) %>% data_filtering()
+d.filtered <- d.DBSL$filtered_data %>% dplyr::select(-upper_bound, -excluded)
+mean.DBSL <- get_mean(d.filtered)
+```
+# plot individual mean data
+```{r plot for individuals}
+mean_individual <- d.filtered %>% 
+  group_by(participant, block, trial) %>% 
+  summarise(mean_results=mean(results)) %>% 
+  ungroup()
+
+p_individual <- 
+  ggplot(mean_individual, aes(x = block, y = mean_results, color = trial, group = trial)) +
+  facet_wrap(~ participant, nrow = 2) +
+  geom_point(position = position_dodge(0.3)) +
+  scale_color_manual(values = c("highf0" = "blue", "lowf0" = "orange")) +
+  theme_minimal() +
+  labs(title = "Proportion of /t/ responses for each participant across blocks",
+       x = "Block",
+       y = "Proportion of /t/ responses",
+       color = "Trial")
+ 
+p_individual
+```
+
+# linear mixed effect model
+```{r linear model and t-test}
+m1 <- lmer(results ~ trial*block + (1|participant), data=d.filtered)
+summary(m1)
+anova(m1)
+m2 <- lmer(results ~ trial/block + (1|participant), data=d.filtered)
+summary(m2)
+m3 <- lmer(results ~ block/trial + (1|participant), data=d.filtered)
+summary(m3)
+```
+
+# result plot
+```{r plot averaged responses}
+emm <- emmeans(m2, ~ trial | block)
+summary(emm)
+emm_df <- as.data.frame(emm)
+emm_df
+
+p1 <- ggplot(emm_df, aes(x = block, y = emmean, color = trial, group = trial)) +
+  geom_point(position = position_dodge(0.5)) +
+  geom_errorbar(aes(ymin = lower.CL, ymax = upper.CL), width = 0.2, position = position_dodge(0.5)) +
+  labs(title = "Proportion of /t/ responses with 95% confidence intervals",
+       x = "Block", y = "Averaged proportion of /t/ responses") +
+  theme_minimal()
+
+p1
+```
