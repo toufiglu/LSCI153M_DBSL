@@ -94,24 +94,36 @@ p_individual <-
   facet_wrap(~ participant, nrow = 2) +
   geom_point(position = position_dodge(0.3)) +
   scale_color_manual(values = c("highf0" = "blue", "lowf0" = "orange")) +
-  theme_minimal() +
   labs(title = "Proportion of /t/ responses for each participant across blocks",
        x = "Block",
        y = "Proportion of /t/ responses",
-       color = "Trial")
+       color = "Trial") +
+  theme(axis.text.x = element_text(angle = 90, vjust = 0.5, hjust=1))
  
 p_individual
 ```
 
-# linear mixed effect model
+# contrast coding and linear mixed effect model
 ```{r linear model and t-test}
-m1 <- lmer(results ~ trial*block + (1|participant), data=d.filtered)
-anova(m1)
+# treatment coding for f0 (trial) levels and for block
+d.filtered <- d.filtered %>% 
+  within(., {
+  trial <- factor(trial, levels = c("highf0", "lowf0"))
+  contrasts(trial) <- contr.treatment(2)
+  colnames(contrasts(trial)) <- "_lowf0"
+  
+  block <- factor(block, levels = c("canonical", "neutral", "reversed"))
+  contrasts(block) <- contr.treatment(3)
+  colnames(contrasts(block)) <- c("_neutral", "_reversed")
+  
+  # sum code participant for random effects
+  participant <- factor(participant)
+  contrasts(participant) <- contr.sum(nlevels(participant))
+  })
 
-m2 <- lmer(results ~ trial/block + (1|participant), data=d.filtered)
+m2 <- lmer(results ~ trial*block + (1|participant), data=d.filtered)
+anova(m2)
 summary(m2)
-m3 <- lmer(results ~ block/trial + (1|participant), data=d.filtered)
-summary(m3)
 ```
 
 # result plot

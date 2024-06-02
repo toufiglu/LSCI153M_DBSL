@@ -554,6 +554,14 @@ summary(m1)</code></pre>
 ## blockrevrsd   -0.372  0.513  0.513                     
 ## trllwf0:blckn  0.265 -0.711 -0.711 -0.365              
 ## trllwf0:blckr  0.265 -0.710 -0.365 -0.712  0.505</code></pre>
+<pre class="r"><code>anova(m1)</code></pre>
+<pre><code>## Type III Analysis of Variance Table with Satterthwaite&#39;s method
+##             Sum Sq Mean Sq NumDF  DenDF  F value    Pr(&gt;F)    
+## trial       154454  154454     1 658.20 105.3426 &lt; 2.2e-16 ***
+## block         3433    1717     2 658.09   1.1708    0.3107    
+## trial:block  38928   19464     2 658.05  13.2750 2.228e-06 ***
+## ---
+## Signif. codes:  0 &#39;***&#39; 0.001 &#39;**&#39; 0.01 &#39;*&#39; 0.05 &#39;.&#39; 0.1 &#39; &#39; 1</code></pre>
 <pre class="r"><code>m2 &lt;- lmer(results ~ trial/block + (1|participant), data=d.filtered)
 summary(m2)</code></pre>
 <pre><code>## Linear mixed model fit by REML. t-tests use Satterthwaite&#39;s method [
